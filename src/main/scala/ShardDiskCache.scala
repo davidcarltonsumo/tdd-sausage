@@ -6,8 +6,8 @@ class ShardDiskCache(downloader: Downloader) {
 
   def get(shard: Shard): File = {
     if (!installedShards.contains(shard)) {
-      installedShards.put(shard, downloader.download(shard.path))
+      installedShards(shard) = downloader.download(shard.path)
     }
-    installedShards.get(shard).get
+    installedShards(shard)
   }
 }
