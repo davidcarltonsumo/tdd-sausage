@@ -41,10 +41,6 @@ with BeforeAndAfterEach with Eventually {
       val requester2 = backgroundRequester(2)
       val requester3 = backgroundRequester(3)
 
-      eventually { requester1 should be ('started) }
-      eventually { requester2 should be ('started) }
-      eventually { requester3 should be ('started) }
-
       downloader.resume("path-1")
       downloader.resume("path-2")
       downloader.resume("path-3")
@@ -58,15 +54,33 @@ with BeforeAndAfterEach with Eventually {
       requester3.result should equal (new File("installed-path-3"))
     }
 
-    // Not download a shard that's in the process of being downloaded.
+    "not download a shard that's in the process of being downloaded" in {
+      downloader.delay("path-1")
+
+      val requester1 = backgroundRequester(1)
+      val requester2 = backgroundRequester(1)
+
+      downloader.resume("path-1")
+
+      eventually { requester1 should be ('done) }
+      eventually { requester2 should be ('done) }
+
+      requester1.result should equal (new File("installed-path-1"))
+      requester2.result should equal (new File("installed-path-1"))
+
+      downloader.downloadCount("path-1") should equal (1)
+    }
+
     // Bound the number of simultaneous downloads.
     // Error cases when installing shards?
+    // If a download leads to an error, try again if asked a second time.
     // Evict old shards if the disk is full.
     // Initialize the cache from disk on startup.
     // Not get confused if the process gets terminated while we're downloading.
     // Questions:
     // * Should Shard store the name?
     // * Should Downloader take the name as well as the path?
+    // * Magic names for paths / results in BackgroundDownloader.
   }
 
   class StubDownloader extends Downloader {
@@ -115,6 +129,7 @@ with BeforeAndAfterEach with Eventually {
   def backgroundRequester(i: Int): BackgroundRequester = {
     val requester = new BackgroundRequester(Shard(f"name-$i", f"path-$i"))
     requester.start()
+    eventually { requester should be ('started) }
     requester
   }
 
