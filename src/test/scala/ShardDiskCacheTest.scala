@@ -14,61 +14,61 @@ with BeforeAndAfterEach with Eventually {
 
   "A ShardDiskCache" should {
     "install a shard and return the resulting File" in {
-      cache.get(Shard("name", "path")) should equal (new File("installed-path"))
+      cache.get(shard(1)) should equal (file(1))
     }
 
     "not re-install a shard that is already installed" in {
-      val shard = Shard("name", "path")
+      val s = shard(1)
 
-      cache.get(shard)
-      cache.get(shard) should equal (new File("installed-path"))
+      cache.get(s)
+      cache.get(s) should equal (file(1))
 
-      downloader.downloadCount("path") should equal (1)
+      downloader.downloadCount(1) should equal (1)
     }
 
     "install multiple shards" in {
-      cache.get(Shard("name-1", "path-1")) should equal (new File("installed-path-1"))
-      cache.get(Shard("name-2", "path-2")) should equal (new File("installed-path-2"))
-      cache.get(Shard("name-3", "path-3")) should equal (new File("installed-path-3"))
+      cache.get(shard(1)) should equal (file(1))
+      cache.get(shard(2)) should equal (file(2))
+      cache.get(shard(3)) should equal (file(3))
     }
 
     "install multiple shards in parallel" in {
-      downloader.delay("path-1")
-      downloader.delay("path-2")
-      downloader.delay("path-3")
+      downloader.delay(1)
+      downloader.delay(2)
+      downloader.delay(3)
 
       val requester1 = backgroundRequester(1)
       val requester2 = backgroundRequester(2)
       val requester3 = backgroundRequester(3)
 
-      downloader.resume("path-1")
-      downloader.resume("path-2")
-      downloader.resume("path-3")
+      downloader.resume(1)
+      downloader.resume(2)
+      downloader.resume(3)
 
       eventually { requester1 should be ('done) }
       eventually { requester2 should be ('done) }
       eventually { requester3 should be ('done) }
 
-      requester1.result should equal (new File("installed-path-1"))
-      requester2.result should equal (new File("installed-path-2"))
-      requester3.result should equal (new File("installed-path-3"))
+      requester1.result should equal (file(1))
+      requester2.result should equal (file(2))
+      requester3.result should equal (file(3))
     }
 
     "not download a shard that's in the process of being downloaded" in {
-      downloader.delay("path-1")
+      downloader.delay(1)
 
       val requester1 = backgroundRequester(1)
       val requester2 = backgroundRequester(1)
 
-      downloader.resume("path-1")
+      downloader.resume(1)
 
       eventually { requester1 should be ('done) }
       eventually { requester2 should be ('done) }
 
-      requester1.result should equal (new File("installed-path-1"))
-      requester2.result should equal (new File("installed-path-1"))
+      requester1.result should equal (file(1))
+      requester2.result should equal (file(1))
 
-      downloader.downloadCount("path-1") should equal (1)
+      downloader.downloadCount(1) should equal (1)
     }
 
     // Bound the number of simultaneous downloads.
@@ -80,17 +80,16 @@ with BeforeAndAfterEach with Eventually {
     // Questions:
     // * Should Shard store the name?
     // * Should Downloader take the name as well as the path?
-    // * Magic names for paths / results in BackgroundDownloader.
   }
 
   class StubDownloader extends Downloader {
-    val downloadCount = mutable.Map[String, Int]()
-    val delayedDownloads = mutable.Set[String]()
+    private val downloadCounts = mutable.Map[String, Int]()
+    private val delayedDownloads = mutable.Set[String]()
 
     def download(path: String): File = {
       waitForPermissionToDownload(path)
-      downloadCount(path) = downloadCount.getOrElse(path, 0) + 1
-      new File("installed-" + path)
+      downloadCounts(path) = downloadCounts.getOrElse(path, 0) + 1
+      new File(f"installed-$path")
     }
 
     def waitForPermissionToDownload(path: String) {
@@ -99,12 +98,16 @@ with BeforeAndAfterEach with Eventually {
       }
     }
 
-    def delay(path: String) {
-      delayedDownloads += path
+    def delay(i: Int) {
+      delayedDownloads += path(i)
     }
 
-    def resume(path: String) {
-      delayedDownloads -= path
+    def resume(i: Int) {
+      delayedDownloads -= path(i)
+    }
+
+    def downloadCount(i: Int): Int = {
+      downloadCounts(path(i))
     }
   }
 
@@ -127,10 +130,22 @@ with BeforeAndAfterEach with Eventually {
   }
 
   def backgroundRequester(i: Int): BackgroundRequester = {
-    val requester = new BackgroundRequester(Shard(f"name-$i", f"path-$i"))
+    val requester = new BackgroundRequester(shard(i))
     requester.start()
     eventually { requester should be ('started) }
     requester
+  }
+
+  def shard(i: Int): Shard = {
+    Shard(f"name-$i", path(i))
+  }
+
+  def path(i: Int): String = {
+    f"path-$i"
+  }
+
+  def file(i: Int): File = {
+    new File(f"installed-path-$i")
   }
 
   override protected def beforeEach() {
