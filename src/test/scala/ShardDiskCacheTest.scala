@@ -18,10 +18,8 @@ with BeforeAndAfterEach with Eventually {
     }
 
     "not re-install a shard that is already installed" in {
-      val s = shard(1)
-
-      cache.get(s)
-      cache.get(s) should equal (file(1))
+      cache.get(shard(1))
+      cache.get(shard(1)) should equal (file(1))
 
       downloader.downloadCount(1) should equal (1)
     }
@@ -75,7 +73,7 @@ with BeforeAndAfterEach with Eventually {
       downloader.downloadCount(1) should equal (1)
     }
 
-    "bound the number of simultaneous downloads" ignore {
+    "bound the number of simultaneous downloads" in {
       downloader.delay(1)
       downloader.delay(2)
       downloader.delay(3)
@@ -85,11 +83,13 @@ with BeforeAndAfterEach with Eventually {
 
       val requester1 = backgroundRequester(1)
       val requester2 = backgroundRequester(2)
-      val requester3 = backgroundRequester(3)
-      val requester4 = backgroundRequester(4)
-      val requester5 = backgroundRequester(5)
-      val requester6 = backgroundRequester(6)
+      backgroundRequester(3)
+      backgroundRequester(4)
+      backgroundRequester(5)
 
+      eventually { downloader.requestCount should be (5)}
+
+      val requester6 = backgroundRequester(6)
       Thread.sleep(100)
       downloader.requestCount(6) should be (0)
 
@@ -108,7 +108,6 @@ with BeforeAndAfterEach with Eventually {
       eventually { requester6 should be ('done) }
     }
 
-    // Bound the number of simultaneous downloads.
     // Error cases when installing shards?
     // If a download leads to an error, try again if asked a second time.
     // Evict old shards if the disk is full.
@@ -152,6 +151,10 @@ with BeforeAndAfterEach with Eventually {
 
     def requestCount(i: Int): Int = {
       requestCounts.getOrElse(path(i), 0)
+    }
+
+    def requestCount: Int = {
+      requestCounts.values.sum
     }
   }
 

@@ -27,7 +27,7 @@ class ShardDiskCache(downloader: Downloader, maxSimultaneousDownloads: Int = 5) 
   }
 
   private def waitForDownloadToComplete(shard: Shard) {
-    while (shardsInProgress.contains(shard)) {
+    while (shardsInProgress.contains(shard) || shardsInProgress.size >= maxSimultaneousDownloads) {
       lock.wait()
     }
   }
