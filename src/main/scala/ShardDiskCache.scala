@@ -1,36 +1,35 @@
 import java.io.File
 import scala.collection.mutable
 
-class ShardDiskCache(downloader: Downloader) {
+class ShardDiskCache(downloader: Downloader, maxSimultaneousDownloads: Int = 5) {
   private val installedShards = mutable.Map[Shard, File]()
   private val shardsInProgress = mutable.Set[Shard]()
   private val lock = new Object
 
   def get(shard: Shard): File = {
     lock.synchronized {
-      waitForPermissionToDownload(shard)
-
-      if (!installedShards.contains(shard)) {
-        download(shard)
+      while (shardsInProgress.contains(shard)) {
+        lock.wait()
       }
 
-      installedShards(shard)
-    }
-  }
+      if (installedShards.contains(shard)) {
+        return installedShards(shard)
+      }
 
-  private def waitForPermissionToDownload(shard: Shard) {
-    while (shardsInProgress.contains(shard)) {
-      lock.wait()
+      shardsInProgress += shard
     }
-  }
 
-  private def download(shard: Shard) {
-    shardsInProgress += shard
     try {
-      installedShards(shard) = downloader.download(shard.path)
+      val shardFile = downloader.download(shard.path)
+      lock.synchronized {
+        installedShards(shard) = shardFile
+        shardFile
+      }
     } finally {
-      shardsInProgress -= shard
-      lock.notifyAll()
+      lock.synchronized {
+        shardsInProgress -= shard
+        lock.notifyAll()
+      }
     }
   }
 }

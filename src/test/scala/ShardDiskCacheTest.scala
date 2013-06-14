@@ -41,6 +41,10 @@ with BeforeAndAfterEach with Eventually {
       val requester2 = backgroundRequester(2)
       val requester3 = backgroundRequester(3)
 
+      eventually { downloader.requestCount(1) should be (1) }
+      eventually { downloader.requestCount(2) should be (1) }
+      eventually { downloader.requestCount(3) should be (1) }
+
       downloader.resume(1)
       downloader.resume(2)
       downloader.resume(3)
@@ -71,6 +75,39 @@ with BeforeAndAfterEach with Eventually {
       downloader.downloadCount(1) should equal (1)
     }
 
+    "bound the number of simultaneous downloads" ignore {
+      downloader.delay(1)
+      downloader.delay(2)
+      downloader.delay(3)
+      downloader.delay(4)
+      downloader.delay(5)
+      downloader.delay(6)
+
+      val requester1 = backgroundRequester(1)
+      val requester2 = backgroundRequester(2)
+      val requester3 = backgroundRequester(3)
+      val requester4 = backgroundRequester(4)
+      val requester5 = backgroundRequester(5)
+      val requester6 = backgroundRequester(6)
+
+      Thread.sleep(100)
+      downloader.requestCount(6) should be (0)
+
+      downloader.resume(1)
+
+      eventually { downloader.requestCount(6) should be (1)}
+      requester1 should be ('done)
+
+      downloader.resume(2)
+      downloader.resume(3)
+      downloader.resume(4)
+      downloader.resume(5)
+      downloader.resume(6)
+
+      eventually { requester2 should be ('done) }
+      eventually { requester6 should be ('done) }
+    }
+
     // Bound the number of simultaneous downloads.
     // Error cases when installing shards?
     // If a download leads to an error, try again if asked a second time.
@@ -80,13 +117,16 @@ with BeforeAndAfterEach with Eventually {
     // Questions:
     // * Should Shard store the name?
     // * Should Downloader take the name as well as the path?
+    // * Pass in the bound in the number of downloads as a property?
   }
 
   class StubDownloader extends Downloader {
+    private val requestCounts = mutable.Map[String, Int]()
     private val downloadCounts = mutable.Map[String, Int]()
     private val delayedDownloads = mutable.Set[String]()
 
     def download(path: String): File = {
+      requestCounts(path) = requestCounts.getOrElse(path, 0) + 1
       waitForPermissionToDownload(path)
       downloadCounts(path) = downloadCounts.getOrElse(path, 0) + 1
       new File(f"installed-$path")
@@ -109,6 +149,10 @@ with BeforeAndAfterEach with Eventually {
     def downloadCount(i: Int): Int = {
       downloadCounts(path(i))
     }
+
+    def requestCount(i: Int): Int = {
+      requestCounts.getOrElse(path(i), 0)
+    }
   }
 
   class BackgroundRequester(shard: Shard) {
@@ -116,7 +160,7 @@ with BeforeAndAfterEach with Eventually {
     private var resultOption: Option[File] = None
 
     def start() {
-      new Thread {
+      new Thread(f"BackgroundRequester-$shard") {
         override def run() {
           started = true
           resultOption = Some(cache.get(shard))
