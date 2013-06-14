@@ -31,9 +31,7 @@ with BeforeAndAfterEach with Eventually {
     }
 
     "install multiple shards in parallel" in {
-      downloader.delay(1)
-      downloader.delay(2)
-      downloader.delay(3)
+      downloader.delay(1, 2, 3)
 
       val requester1 = backgroundRequester(1)
       val requester2 = backgroundRequester(2)
@@ -43,9 +41,7 @@ with BeforeAndAfterEach with Eventually {
       eventually { downloader.requestCount(2) should be (1) }
       eventually { downloader.requestCount(3) should be (1) }
 
-      downloader.resume(1)
-      downloader.resume(2)
-      downloader.resume(3)
+      downloader.resume(1, 2, 3)
 
       eventually { requester1 should be ('done) }
       eventually { requester2 should be ('done) }
@@ -74,12 +70,7 @@ with BeforeAndAfterEach with Eventually {
     }
 
     "bound the number of simultaneous downloads" in {
-      downloader.delay(1)
-      downloader.delay(2)
-      downloader.delay(3)
-      downloader.delay(4)
-      downloader.delay(5)
-      downloader.delay(6)
+      downloader.delay(1, 2, 3, 4, 5, 6)
 
       val requester1 = backgroundRequester(1)
       val requester2 = backgroundRequester(2)
@@ -98,11 +89,7 @@ with BeforeAndAfterEach with Eventually {
       eventually { downloader.requestCount(6) should be (1)}
       requester1 should be ('done)
 
-      downloader.resume(2)
-      downloader.resume(3)
-      downloader.resume(4)
-      downloader.resume(5)
-      downloader.resume(6)
+      downloader.resume(2, 3, 4, 5, 6)
 
       eventually { requester2 should be ('done) }
       eventually { requester6 should be ('done) }
@@ -137,12 +124,12 @@ with BeforeAndAfterEach with Eventually {
       }
     }
 
-    def delay(i: Int) {
-      delayedDownloads += path(i)
+    def delay(is: Int*) {
+      is.foreach { delayedDownloads += path(_) }
     }
 
-    def resume(i: Int) {
-      delayedDownloads -= path(i)
+    def resume(is: Int*) {
+      is.foreach { delayedDownloads -= path(_) }
     }
 
     def downloadCount(i: Int): Int = {
