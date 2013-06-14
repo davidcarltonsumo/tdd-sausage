@@ -7,18 +7,32 @@ class ShardDiskCache(downloader: Downloader, maxSimultaneousDownloads: Int = 5) 
   private val lock = new Object
 
   def get(shard: Shard): File = {
+    checkForShardInCache(shard) match {
+      case Some(file) => file
+      case None => download(shard)
+    }
+  }
+
+  private def checkForShardInCache(shard: Shard): Option[File] = {
     lock.synchronized {
-      while (shardsInProgress.contains(shard)) {
-        lock.wait()
-      }
+      waitForDownloadToComplete(shard)
 
       if (installedShards.contains(shard)) {
-        return installedShards(shard)
+        return Some(installedShards(shard))
       }
 
       shardsInProgress += shard
+      None
     }
+  }
 
+  private def waitForDownloadToComplete(shard: Shard) {
+    while (shardsInProgress.contains(shard)) {
+      lock.wait()
+    }
+  }
+
+  private def download(shard: Shard): File = {
     try {
       val shardFile = downloader.download(shard.path)
       lock.synchronized {
