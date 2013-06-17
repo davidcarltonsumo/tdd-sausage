@@ -78,7 +78,7 @@ with BeforeAndAfterEach with Eventually {
       backgroundRequester(4)
       backgroundRequester(5)
 
-      eventually { downloader.requestCount should be (5)}
+      eventually { downloader.requestCount should be (5) }
 
       val requester6 = backgroundRequester(6)
       Thread.sleep(100)
@@ -86,7 +86,7 @@ with BeforeAndAfterEach with Eventually {
 
       downloader.resume(1)
 
-      eventually { downloader.requestCount(6) should be (1)}
+      eventually { downloader.requestCount(6) should be (1) }
       requester1 should be ('done)
 
       downloader.resume(2, 3, 4, 5, 6)
@@ -95,11 +95,45 @@ with BeforeAndAfterEach with Eventually {
       eventually { requester6 should be ('done) }
     }
 
-    // Error cases when installing shards?
-    // If a download leads to an error, try again if asked a second time.
+    "propagate errors when trying to download shards" in {
+      downloader.setError(1)
+
+      intercept[RuntimeException] { cache.get(shard(1)) }
+    }
+
+    "try a second time if downloading the first time leads to an error" in {
+      downloader.setError(1)
+
+      intercept[RuntimeException] { cache.get(shard(1)) }
+      cache.get(shard(1)) should equal (file(1))
+
+      downloader.downloadCount(1) should equal (2)
+    }
+
+    "not have errors count against the maximum number of simultaneous downloads" in {
+      downloader.setError(1)
+
+      intercept[RuntimeException] { cache.get(shard(1)) }
+
+      downloader.delay(2, 3, 4, 5, 6)
+
+      backgroundRequester(2)
+      backgroundRequester(3)
+      backgroundRequester(4)
+      backgroundRequester(5)
+      val requester6 = backgroundRequester(6)
+
+      eventually { downloader.requestCount should be (6) }
+
+      downloader.resume(2, 3, 4, 5, 6)
+
+      eventually { requester6 should be ('done) }
+    }
+
     // Evict old shards if the disk is full.
     // Initialize the cache from disk on startup.
     // Not get confused if the process gets terminated while we're downloading.
+    // Provide a prefetch mechanism where we say that we'll want something in the future?
     // Questions:
     // * Should Shard store the name?
     // * Should Downloader take the name as well as the path?
@@ -110,12 +144,19 @@ with BeforeAndAfterEach with Eventually {
     private val requestCounts = mutable.Map[String, Int]()
     private val downloadCounts = mutable.Map[String, Int]()
     private val delayedDownloads = mutable.Set[String]()
+    private val errorRequested = mutable.Set[String]()
 
     def download(path: String): File = {
       requestCounts(path) = requestCounts.getOrElse(path, 0) + 1
       waitForPermissionToDownload(path)
       downloadCounts(path) = downloadCounts.getOrElse(path, 0) + 1
-      new File(f"installed-$path")
+
+      if (errorRequested.contains(path)) {
+        errorRequested -= path
+        throw new RuntimeException(f"Error while downloading $path")
+      } else {
+        new File(f"installed-$path")
+      }
     }
 
     def waitForPermissionToDownload(path: String) {
@@ -130,6 +171,10 @@ with BeforeAndAfterEach with Eventually {
 
     def resume(is: Int*) {
       is.foreach { delayedDownloads -= path(_) }
+    }
+
+    def setError(i: Int) {
+      errorRequested += path(i)
     }
 
     def downloadCount(i: Int): Int = {
