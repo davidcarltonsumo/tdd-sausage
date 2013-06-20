@@ -1,6 +1,7 @@
 import java.io.File
+import java.util.concurrent.atomic.{AtomicBoolean, AtomicInteger}
 import org.junit.runner.RunWith
-import org.mockito.Mockito._
+import org.scalatest.concurrent.Eventually
 import org.scalatest.junit.JUnitRunner
 import org.scalatest.matchers.ShouldMatchers
 import org.scalatest.mock.MockitoSugar
@@ -8,7 +9,7 @@ import org.scalatest.{BeforeAndAfterEach, WordSpec}
 
 @RunWith(classOf[JUnitRunner])
 class ShardDiskCacheTest extends WordSpec with ShouldMatchers with MockitoSugar
-with BeforeAndAfterEach {
+with BeforeAndAfterEach with Eventually {
   var downloader: FakeDownloader = _
   var sut: ShardDiskCache = _
 
@@ -35,8 +36,15 @@ with BeforeAndAfterEach {
     "Install multiple shards in parallel" in {
       // Create a bunch of threads
       // Tell the downloader to block if asked to download
+      downloader.block()
+
       // Tell them each to start download
+
+      eventually { downloader.downloadCount should equal (5) }
+
       // Tell the downloader to unblock
+      downloader.unblock()
+
       // Wait for the threads to be done
       // Check responses as expected
     }
@@ -56,10 +64,33 @@ with BeforeAndAfterEach {
 
   class FakeDownloader extends Downloader {
     var actions = ""
+    var currentDownloadCount = new AtomicInteger(0)
+    var shouldBlock = new AtomicBoolean(false)
+    val blockLock = new Object
 
     def download(name: String, path: String): File = {
+      currentDownloadCount.incrementAndGet()
+      waitUntilShouldntBlock()
       actions += f"d($name,$path);"
+      currentDownloadCount.decrementAndGet()
       new File(f"installed/$name")
     }
+
+    def waitUntilShouldntBlock() {
+      while (shouldBlock.get()) {
+         blockLock.wait()
+      }
+    }
+
+    def block() {
+      shouldBlock.set(true)
+    }
+
+    def unblock() {
+      shouldBlock.set(false)
+      blockLock.notifyAll()
+    }
+
+    def downloadCount = currentDownloadCount.get()
   }
 }
