@@ -20,7 +20,18 @@ class ShardDiskCacheTest extends WordSpec with ShouldMatchers with MockitoSugar 
       verify(downloader).download("name", "path")
     }
 
-    // Not re-install a shard that is already installed.
+    "Not re-download a shard that is already installed" in {
+      val shard = Shard("name", "path")
+      val downloader = mock[Downloader]
+      val sut = new ShardDiskCache(downloader)
+      when(downloader.download("name", "path")).thenReturn(new File("installed/name"))
+
+      sut.install(shard) should equal (new File("installed/name"))
+      sut.install(shard) should equal (new File("installed/name"))
+
+      verify(downloader, times(1)).download("name", "path")
+    }
+
     // Install a bunch of shards.
     // Install multiple shards in parallel.
     // Not download a shard that's in the process of being downloaded.
