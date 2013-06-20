@@ -9,46 +9,38 @@ import org.scalatest.{BeforeAndAfterEach, WordSpec}
 @RunWith(classOf[JUnitRunner])
 class ShardDiskCacheTest extends WordSpec with ShouldMatchers with MockitoSugar
 with BeforeAndAfterEach {
-  var downloader: Downloader = _
+  var downloader: FakeDownloader = _
   var sut: ShardDiskCache = _
 
   "A ShardDiskCache" should {
     "download and install a shard" in {
-      val shard = Shard("name", "path")
+      sut.install(Shard("name", "path")) should equal (new File("installed/name"))
 
-      when(downloader.download("name", "path")).thenReturn(new File("installed/name"))
-
-      sut.install(shard) should equal (new File("installed/name"))
-
-      verify(downloader).download("name", "path")
+      downloader.actions should equal ("d(name,path);")
     }
 
     "Not re-download a shard that is already installed" in {
-      val shard = Shard("name", "path")
+      sut.install(Shard("name", "path")) should equal (new File("installed/name"))
+      sut.install(Shard("name", "path")) should equal (new File("installed/name"))
 
-      when(downloader.download("name", "path")).thenReturn(new File("installed/name"))
-
-      sut.install(shard) should equal (new File("installed/name"))
-      sut.install(shard) should equal (new File("installed/name"))
-
-      verify(downloader, times(1)).download("name", "path")
+      downloader.actions should equal ("d(name,path);")
     }
 
     "Install a bunch of shards" in {
-      val shard1 = Shard("name1", "path1")
-      val shard2 = Shard("name2", "path2")
-      val shard3 = Shard("name3", "path3")
-
-      when(downloader.download("name1", "path1")).thenReturn(new File("installed/name1"))
-      when(downloader.download("name2", "path2")).thenReturn(new File("installed/name2"))
-      when(downloader.download("name3", "path3")).thenReturn(new File("installed/name3"))
-
-      sut.install(shard1) should equal (new File("installed/name1"))
-      sut.install(shard2) should equal (new File("installed/name2"))
-      sut.install(shard3) should equal (new File("installed/name3"))
+      sut.install(Shard("name1", "path1")) should equal (new File("installed/name1"))
+      sut.install(Shard("name2", "path2")) should equal (new File("installed/name2"))
+      sut.install(Shard("name3", "path3")) should equal (new File("installed/name3"))
     }
 
-    // Install multiple shards in parallel.
+    "Install multiple shards in parallel" in {
+      // Create a bunch of threads
+      // Tell the downloader to block if asked to download
+      // Tell them each to start download
+      // Tell the downloader to unblock
+      // Wait for the threads to be done
+      // Check responses as expected
+    }
+
     // Not download a shard that's in the process of being downloaded.
     // Bound the number of simultaneous downloads.
     // Evict old shards if the disk is full.
@@ -58,7 +50,16 @@ with BeforeAndAfterEach {
   }
 
   override protected def beforeEach() {
-    downloader = mock[Downloader]
+    downloader = new FakeDownloader
     sut = new ShardDiskCache(downloader)
+  }
+
+  class FakeDownloader extends Downloader {
+    var actions = ""
+
+    def download(name: String, path: String): File = {
+      actions += f"d($name,$path);"
+      new File(f"installed/$name")
+    }
   }
 }
