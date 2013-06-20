@@ -1,16 +1,25 @@
+import java.io.File
 import org.junit.runner.RunWith
+import org.mockito.Mockito._
 import org.scalatest.junit.JUnitRunner
 import org.scalatest.matchers.ShouldMatchers
+import org.scalatest.mock.MockitoSugar
 import org.scalatest.WordSpec
 
 @RunWith(classOf[JUnitRunner])
-class ShardDiskCacheTest extends WordSpec with ShouldMatchers {
+class ShardDiskCacheTest extends WordSpec with ShouldMatchers with MockitoSugar {
   "A ShardDiskCache" should {
-    "do something" in {
-      1 should equal (3)
+    "download and install a shard" in {
+      val shard = Shard("name", "path")
+      val downloader = mock[Downloader]
+      val sut = new ShardDiskCache(downloader)
+      when(downloader.download("name", "path")).thenReturn(new File("installed/name"))
+
+      sut.install(shard) should equal (new File("installed/name"))
+
+      verify(downloader).download("name", "path")
     }
 
-    // Install a shard.
     // Not re-install a shard that is already installed.
     // Install a bunch of shards.
     // Install multiple shards in parallel.
