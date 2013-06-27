@@ -64,8 +64,8 @@ with BeforeAndAfterEach with Eventually {
     // Not get confused if the process gets terminated while we're downloading.
     // Provide a prefetch mechanism where we say that we'll want something in the future?
 
-    // Problems:
-    // * ShardDiskCache isn't thread safe
+    // Questions:
+    // * Should ShardDiskCache use a ConcurrentHashMap?
     // * Shard installation uses the path to fetch but stores it only at the name; is that
     //   a problem?
   }

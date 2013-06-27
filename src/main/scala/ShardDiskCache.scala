@@ -5,6 +5,17 @@ class ShardDiskCache(downloader: Downloader) {
   private val cache = mutable.Map[Shard, File]()
 
   def install(shard: Shard): File = {
-    cache.getOrElseUpdate(shard, downloader.download(shard.name, shard.path))
+    synchronized {
+      if (cache.contains(shard)) {
+        return cache(shard)
+      }
+    }
+
+    val downloadedShard = downloader.download(shard.name, shard.path)
+
+    synchronized {
+      cache(shard) = downloadedShard
+      cache(shard)
+    }
   }
 }
