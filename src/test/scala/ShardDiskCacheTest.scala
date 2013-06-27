@@ -1,5 +1,5 @@
 import java.io.File
-import java.util.concurrent.atomic.{AtomicBoolean, AtomicInteger}
+import java.util.concurrent.atomic.AtomicInteger
 import org.junit.runner.RunWith
 import org.scalatest.concurrent.Eventually
 import org.scalatest.junit.JUnitRunner
@@ -34,19 +34,27 @@ with BeforeAndAfterEach with Eventually {
     }
 
     "Install multiple shards in parallel" in {
-      // Create a bunch of threads
-      // Tell the downloader to block if asked to download
       downloader.block()
 
-      // Tell them each to start download
+      val installer1 = new BackgroundInstaller(Shard("name1", "path1"))
+      val installer2 = new BackgroundInstaller(Shard("name2", "path2"))
+      val installer3 = new BackgroundInstaller(Shard("name3", "path3"))
 
-      eventually { downloader.downloadCount should equal (5) }
+      installer1.start()
+      installer2.start()
+      installer3.start()
 
-      // Tell the downloader to unblock
+      eventually { downloader.downloadCount should equal (3) }
+
       downloader.unblock()
 
-      // Wait for the threads to be done
-      // Check responses as expected
+      eventually { installer1 should be ('done) }
+      eventually { installer2 should be ('done) }
+      eventually { installer3 should be ('done) }
+
+      installer1.result should equal (new File("installed/name1"))
+      installer2.result should equal (new File("installed/name2"))
+      installer3.result should equal (new File("installed/name3"))
     }
 
     // Not download a shard that's in the process of being downloaded.
@@ -60,6 +68,21 @@ with BeforeAndAfterEach with Eventually {
   override protected def beforeEach() {
     downloader = new StubDownloader
     sut = new ShardDiskCache(downloader)
+  }
+
+  class BackgroundInstaller(shard: Shard) {
+    var resultOption: Option[File] = None
+
+    def start() {
+      new Thread() {
+        override def run() {
+          resultOption = Some(sut.install(shard))
+        }
+      }.start()
+    }
+
+    def isDone: Boolean = resultOption.isDefined
+    def result: File = resultOption.get
   }
 
   class StubDownloader extends Downloader {
