@@ -10,7 +10,7 @@ import org.scalatest.{BeforeAndAfterEach, WordSpec}
 @RunWith(classOf[JUnitRunner])
 class ShardDiskCacheTest extends WordSpec with ShouldMatchers with MockitoSugar
 with BeforeAndAfterEach with Eventually {
-  var downloader: FakeDownloader = _
+  var downloader: StubDownloader = _
   var sut: ShardDiskCache = _
 
   "A ShardDiskCache" should {
@@ -58,15 +58,14 @@ with BeforeAndAfterEach with Eventually {
   }
 
   override protected def beforeEach() {
-    downloader = new FakeDownloader
+    downloader = new StubDownloader
     sut = new ShardDiskCache(downloader)
   }
 
-  class FakeDownloader extends Downloader {
+  class StubDownloader extends Downloader {
     var actions = ""
     var currentDownloadCount = new AtomicInteger(0)
-    var shouldBlock = new AtomicBoolean(false)
-    val blockLock = new Object
+    var shouldBlock = false
 
     def download(name: String, path: String): File = {
       currentDownloadCount.incrementAndGet()
@@ -77,18 +76,15 @@ with BeforeAndAfterEach with Eventually {
     }
 
     def waitUntilShouldntBlock() {
-      while (shouldBlock.get()) {
-         blockLock.wait()
-      }
+      eventually { shouldBlock should be (false) }
     }
 
     def block() {
-      shouldBlock.set(true)
+      shouldBlock = true
     }
 
     def unblock() {
-      shouldBlock.set(false)
-      blockLock.notifyAll()
+      shouldBlock = false
     }
 
     def downloadCount = currentDownloadCount.get()
