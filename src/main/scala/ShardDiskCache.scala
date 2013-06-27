@@ -2,6 +2,8 @@ import java.io.File
 import scala.collection.mutable
 
 class ShardDiskCache(downloader: Downloader) {
+  // All access to cache and downloadsInProgress should be guarded by lock
+  private val lock = new Object
   private val cache = mutable.Map[Shard, File]()
   private val downloadsInProgress = mutable.Set[Shard]()
 
@@ -13,9 +15,9 @@ class ShardDiskCache(downloader: Downloader) {
   }
 
   private def lookupInCache(shard: Shard): Option[File] = {
-    synchronized {
+    lock.synchronized {
       while (downloadsInProgress.contains(shard)) {
-        wait()
+        lock.wait()
       }
 
       if (cache.contains(shard)) {
@@ -28,9 +30,9 @@ class ShardDiskCache(downloader: Downloader) {
   }
 
   private def insertIntoCache(shard: Shard, downloadedShard: File): File = {
-    synchronized {
+    lock.synchronized {
       downloadsInProgress -= shard
-      notifyAll()
+      lock.notifyAll()
       cache(shard) = downloadedShard
       cache(shard)
     }
