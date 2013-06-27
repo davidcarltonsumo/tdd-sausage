@@ -57,8 +57,32 @@ with BeforeAndAfterEach with Eventually {
       installer3.result should equal (installedFile(3))
     }
 
-    // Not download a shard that's in the process of being downloaded.
+    "Not download a shard that's in the process of being downloaded" in {
+      downloader.block()
+
+      val installer1 = new BackgroundInstaller(shard(1))
+      val installer2 = new BackgroundInstaller(shard(1))
+
+      installer1.start()
+      installer2.start()
+
+      eventually { downloader.downloadCount should equal (1) }
+
+      Thread.sleep(100)
+
+      downloader.unblock()
+
+      eventually { installer1 should be ('done) }
+      eventually { installer2 should be ('done) }
+
+      installer1.result should equal (installedFile(1))
+      installer2.result should equal (installedFile(1))
+
+      downloader.actions should equal ("d(name1,path1);")
+    }
+
     // Bound the number of simultaneous downloads.
+    // Downloader throws exceptions
     // Evict old shards if the disk is full.
     // Initialize the cache from disk on startup.
     // Not get confused if the process gets terminated while we're downloading.
@@ -68,6 +92,10 @@ with BeforeAndAfterEach with Eventually {
     // * Should ShardDiskCache use a ConcurrentHashMap?
     // * Shard installation uses the path to fetch but stores it only at the name; is that
     //   a problem?
+    // * Thread.sleep(100)?
+    // * Don't wait forever
+    // * Should cache contain futures?
+    // * Does guava's LoadingCache make this whole class obsolete?
   }
 
 
