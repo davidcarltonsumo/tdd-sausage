@@ -15,30 +15,30 @@ with BeforeAndAfterEach with Eventually {
 
   "A ShardDiskCache" should {
     "download and install a shard" in {
-      sut.install(Shard("name", "path")) should equal (new File("installed/name"))
+      sut.install(shard(1)) should equal (installedFile(1))
 
-      downloader.actions should equal ("d(name,path);")
+      downloader.actions should equal ("d(name1,path1);")
     }
 
     "Not re-download a shard that is already installed" in {
-      sut.install(Shard("name", "path")) should equal (new File("installed/name"))
-      sut.install(Shard("name", "path")) should equal (new File("installed/name"))
+      sut.install(shard(1)) should equal (installedFile(1))
+      sut.install(shard(1)) should equal (installedFile(1))
 
-      downloader.actions should equal ("d(name,path);")
+      downloader.actions should equal ("d(name1,path1);")
     }
 
     "Install a bunch of shards" in {
-      sut.install(Shard("name1", "path1")) should equal (new File("installed/name1"))
-      sut.install(Shard("name2", "path2")) should equal (new File("installed/name2"))
-      sut.install(Shard("name3", "path3")) should equal (new File("installed/name3"))
+      sut.install(shard(1)) should equal (installedFile(1))
+      sut.install(shard(2)) should equal (installedFile(2))
+      sut.install(shard(3)) should equal (installedFile(3))
     }
 
     "Install multiple shards in parallel" in {
       downloader.block()
 
-      val installer1 = new BackgroundInstaller(Shard("name1", "path1"))
-      val installer2 = new BackgroundInstaller(Shard("name2", "path2"))
-      val installer3 = new BackgroundInstaller(Shard("name3", "path3"))
+      val installer1 = new BackgroundInstaller(shard(1))
+      val installer2 = new BackgroundInstaller(shard(2))
+      val installer3 = new BackgroundInstaller(shard(3))
 
       installer1.start()
       installer2.start()
@@ -52,9 +52,9 @@ with BeforeAndAfterEach with Eventually {
       eventually { installer2 should be ('done) }
       eventually { installer3 should be ('done) }
 
-      installer1.result should equal (new File("installed/name1"))
-      installer2.result should equal (new File("installed/name2"))
-      installer3.result should equal (new File("installed/name3"))
+      installer1.result should equal (installedFile(1))
+      installer2.result should equal (installedFile(2))
+      installer3.result should equal (installedFile(3))
     }
 
     // Not download a shard that's in the process of being downloaded.
@@ -63,6 +63,20 @@ with BeforeAndAfterEach with Eventually {
     // Initialize the cache from disk on startup.
     // Not get confused if the process gets terminated while we're downloading.
     // Provide a prefetch mechanism where we say that we'll want something in the future?
+
+    // Problems:
+    // * ShardDiskCache isn't thread safe
+    // * Shard installation uses the path to fetch but stores it only at the name; is that
+    //   a problem?
+  }
+
+
+  def shard(i: Int): Shard = {
+    Shard(f"name$i", f"path$i")
+  }
+
+  def installedFile(i: Int): File = {
+    new File(f"installed/name$i")
   }
 
   override protected def beforeEach() {
